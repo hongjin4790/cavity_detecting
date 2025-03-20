@@ -16,13 +16,31 @@
   - **훈련 세트**: 80% (336장)
   - **검증 세트**: 19.8% (81장)
   - **테스트 세트**: 0.2% (1장)
-- **이미지 유형**: 데이터는 정상 치아와 충치가 있는 치아의 이미지로 구성되어 있으며 COCO 데이터 세트 형식으로 구성되어 있다. JSON 파일에는 파일 경로, 파일 이름, bbox, area 등의 라벨링 데이터가 포함되어 있다.
 
-### 2.2. 데이터 로드
+# 3. 모델
+본 프로젝트에서는 **Faster R-CNN과 YOLOv5 모델을 활용하여 충치 데이터 학습을 진행하였다.
 
-본 프로젝트에서는 Roboflow에서 제공하는 COCO 형식의 데이터를 활용하여 충치 탐지 모델을 학습한다. 
+<img src="https://github.com/user-attachments/assets/a96ccb64-0cbb-4677-957a-6e92efb78e99"  width="600" height="300"/>
 
-아래는 COCO 형식의 충치 데이터를 로드하고 변환한 후 사용자 정의 CavityDataset 클래스를 사용하여 데이터 세트를 로드하는 코드이다.
+- **Faster R-CNN**
+  - 객체 탐지와 분류를 위한 딥러닝 모델
+  - Fast R-CNN 모델의 속도와 정확도 문제를 개선한 모델
+  - 바운딩 박스 제안 영역을 생성하는 Region Proposal Network(RPN)를 추가하여 효율적으로 객체 탐지
+- **YOLOv5**
+  - 객체 탐지를 위한 딥러닝 모델
+  - Anchor-Free 방식을 사용하여 객체의 위치와 크기 예측
+  - 기존 YOLO 모델들의 성능을 개선하고 다양한 크기의 객체를 정확하게 탐지
+
+## 3.1 데이터 로드
+  Roboflow에서 제공하는 데이터를 활용한다.
+
+  - COCO 형식의 데이터는 Faster R-CNN 모델 학습에 사용
+  - YOLO 형식 데이터는 YOLOv5 모델 학습에 사용
+
+### 3.1.1 COCO 데이터 로드
+COCO 데이터 형식은 json 파일을 포함하고 bbox 정보와 category_id 등을 포함한다.
+아래는 COCO 형식 데이터를 로드하여 사용자 정의 CavityDataset 클래스를 사용하여 데이터 세트를 로드하는 코드이다.
+
 ```
 class CavityDataset(torch.utils.data.Dataset):
     def __init__(self, root, annotation, transforms=None):
@@ -78,11 +96,47 @@ cavity_dataset = CavityDataset(root=train_data_dir,
                                 transforms=get_transform())
 ```
 
-# 3. 모델 학습
+### 3.1.2 YOLO 데이터 로드
+YOLOv5의 데이터 형식은 이미지, txt 파일로 저장되는 label, data.yaml으로 구성되어 있다.
 
-# 4. 실험 결과
+Roboflow에서는 YOLO 데이터 형식을 지원하기 때문에 아래와 같이 바로 다운로드 할 수 있다.
+
+![image](https://github.com/user-attachments/assets/aea16d3d-e6ae-4e5a-b2e6-7cce86a095f9)
+
+# 4. 모델 평가 및 비교
+
+- **Faster R-CNN**
+  
+  <img src="https://github.com/user-attachments/assets/a6a7eb51-65d1-47df-ac06-1de2261d1ca4"  width="500" height="300"/>
+
+  - train_loss가 지속적으로 감소하며 안정적으로 학습이 진행
+  - 하지만 test_loss가 점점 증가하는 경향이 있어 과적합의 가능성이 있음
+  - train_map은 거의 1에 수렴하지만 test_map은 0.8 근처에서 변동하는것으로 모델의 일반화 성능이 불안정
+
+- **YOLOv5**
+
+  <img src="https://github.com/user-attachments/assets/5bc595b6-89bf-4807-9d83-46686b25baa5"  width="500" height="300"/>
+
+  - train/box_loss, train/obj_loss, train/cls_loss 모두 빠르게 감소하며 안정적으로 수렴
+  - val/box_loss, val/obj_loss도 비슷한 양상을 보이지만 val/cls_loss에서 변동성이 큰 것으로 보아 클래스 분류에 대한 불안정성이 존재
+  - metrics/mAP_0.5는 0.8, metrics/mAP_0.5:0.95는 약 0.4
+  - metrics/precision, metrics/recall 모두 초반에는 급격히 증가하고 이후에는 안정적인 값을 유지
+
+- **Faster R-CNN**
+
+  <img src="https://github.com/user-attachments/assets/8d1534c7-db31-4d68-869c-33cb3b59db61"  width="500" height="300"/>
+  
+  <img src="https://github.com/user-attachments/assets/68486c8d-f6da-4262-acbf-2e19616560dc"  width="500" height="300"/>
+
+- **YOLOv5**
+  
+  <img src="https://github.com/user-attachments/assets/3328de47-c9b1-42f5-a210-0c162b15c46e"  width="500" height="300"/>
+  
+  <img src="https://github.com/user-attachments/assets/0f23f7ce-3535-4da1-93d9-6aedefa9781b"  width="500" height="300"/>
 
 
-# 5. 추론(Inference)
+# 5. 결론
 
+- 실험 결과를 종합하면 YOLOv5가 Faster R-CNN보다 전반적으로 더 우수한 성능을 보인다. YOLOv5는 빠른 학습 속도와 안정적인 검증 성능을 유지하고 mAP도 비교적 일정하게 유지되는 반면, Faster R-CNN은 학습 데이터에서는 높은 성능을 보이지만 검증 데이터에서 성능 변동이 크고 과적합(overfitting) 가능성이 존재한다.
+- Faster R-CNN의 성능을 개선하기 위해서는 데이터 증강(Data Augmentation)을 하여 일반화 성능을 향상시키고, 학습률, 배치 사이즈 등을 최적화하는 하이퍼 파라미터 튜닝이 필요해 보인다. 또한 더 많은 데이터를 학습에 사용하면 과적합 문제를 완화할 수 있을 것이다.
 
